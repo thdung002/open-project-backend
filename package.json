@@ -1,0 +1,36 @@
+{
+  "name": "open-project-backend",
+  "version": "1.0.0",
+  "description": "Open Project Backend handler",
+  "license": "ISC",
+  "author": "Tran Hoang Dung",
+  "type": "commonjs",
+  "main": "server.js",
+  "bin": "server.js",
+  "pkg": {
+    "assets": [
+      "node_modules/**/*",
+      ".env"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "scripts": {
+    "run": "nodemon server.js",
+    "build": "pkg ."
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.6.5",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "axios": "^1.8.2",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "isomorphic-fetch": "^3.0.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

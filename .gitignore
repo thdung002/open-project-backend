@@ -1,0 +1,6 @@
+.env
+/json/*
+.env.stag
+Makefile
+Dockerfile-local
+node_modules
