@@ -13,7 +13,7 @@ async function readNewTicketFiles() {
 
         // Get files from OneDrive folder
         const response = await axios.get(
-            `https://graph.microsoft.com/v1.0/me/drive/root:${folderPath}:/children`,
+            `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${folderPath}:/children`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -33,6 +33,9 @@ async function readNewTicketFiles() {
         return files;
     } catch (error) {
         console.error('Error reading files from OneDrive:', error.message);
+        if (error.response) {
+            console.error('Response:', error.response.data);
+        }
         throw error;
     }
 }
@@ -41,12 +44,13 @@ async function readNewTicketFiles() {
 async function readFileContent(fileId) {
     try {
         const token = await getAccessToken();
+        const driveId = await getDriveId();
 
         console.log(`📄 Reading file content for ID: ${fileId}`);
 
         // Get file content from OneDrive
         const response = await axios.get(
-            `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+            `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -59,6 +63,9 @@ async function readFileContent(fileId) {
         return response.data;
     } catch (error) {
         console.error('Error reading file content:', error.message);
+        if (error.response) {
+            console.error('Response:', error.response.data);
+        }
         throw error;
     }
 }
@@ -67,13 +74,14 @@ async function readFileContent(fileId) {
 async function moveToArchive(fileId) {
     try {
         const token = await getAccessToken();
+        const driveId = await getDriveId();
         const archivePath = process.env.ONEDRIVE_ARCHIVE_PATH || '/new-ticket/archive';
 
         console.log(`📦 Moving file ${fileId} to archive: ${archivePath}`);
 
         // Move file to archive folder in OneDrive
         await axios.patch(
-            `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}`,
+            `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}`,
             {
                 parentReference: {
                     path: `/drive/root:${archivePath}`
@@ -90,6 +98,9 @@ async function moveToArchive(fileId) {
         console.log('✅ File moved to archive successfully');
     } catch (error) {
         console.error('Error moving file to archive:', error.message);
+        if (error.response) {
+            console.error('Response:', error.response.data);
+        }
         throw error;
     }
 }

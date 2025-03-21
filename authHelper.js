@@ -4,6 +4,24 @@ require('dotenv').config();
 let cachedToken = null;
 let tokenExpiryTime = null;
 
+async function getClientCredentialsToken() {
+    const tokenUrl = `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`;
+    const response = await axios.post(tokenUrl,
+        new URLSearchParams({
+            client_id: process.env.MICROSOFT_CLIENT_ID,
+            client_secret: process.env.MICROSOFT_CLIENT_SECRET,
+            scope: 'https://graph.microsoft.com/.default',
+            grant_type: 'client_credentials'
+        }), {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        }
+    );
+
+    return response.data;
+}
+
 async function getAccessToken() {
     try {
         // Check if we have a valid cached token
@@ -11,26 +29,12 @@ async function getAccessToken() {
             return cachedToken;
         }
 
-        // Get new token using client credentials with delegated permissions
-        const tokenUrl = `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`;
-        const response = await axios.post(tokenUrl,
-            new URLSearchParams({
-                client_id: process.env.MICROSOFT_CLIENT_ID,
-                client_secret: process.env.MICROSOFT_CLIENT_SECRET,
-                scope: 'https://graph.microsoft.com/Files.ReadWrite.All offline_access',
-                grant_type: 'password',
-                username: process.env.MICROSOFT_USER_EMAIL,
-                password: process.env.MICROSOFT_USER_PASSWORD
-            }), {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            }
-        );
+        // Get new token using client credentials
+        const tokenResponse = await getClientCredentialsToken();
 
         // Cache the token
-        cachedToken = response.data.access_token;
-        tokenExpiryTime = Date.now() + (response.data.expires_in * 1000);
+        cachedToken = tokenResponse.access_token;
+        tokenExpiryTime = Date.now() + (tokenResponse.expires_in * 1000);
 
         return cachedToken;
     } catch (error) {
@@ -48,14 +52,19 @@ async function getAccessToken() {
     }
 }
 
-// Helper function to get user's OneDrive
+// Helper function to get drive by ID
 async function getDriveId() {
     try {
         const token = await getAccessToken();
         
-        // Get the user's OneDrive
+        // Get the specific drive using the configured drive ID
+        const driveId = process.env.MICROSOFT_DRIVE_ID;
+        if (!driveId) {
+            throw new Error('MICROSOFT_DRIVE_ID not set in environment variables');
+        }
+
         const response = await axios.get(
-            'https://graph.microsoft.com/v1.0/me/drive',
+            `https://graph.microsoft.com/v1.0/drives/${driveId}`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -76,7 +85,7 @@ async function getDriveId() {
             console.error(`Status: ${error.response.status}`);
             console.error('Response:', error.response.data);
             if (error.response.status === 401) {
-                console.error('\nTip: Your token might be invalid or expired. Try authenticating again.');
+                console.error('\nTip: Your application might not have sufficient permissions.');
             }
         } else if (error.request) {
             console.error('No response received from Microsoft Graph API');
