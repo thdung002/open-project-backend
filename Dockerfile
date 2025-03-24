@@ -13,8 +13,11 @@ RUN npm install
 # Copy application files
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port if needed
 EXPOSE 3000
 
-# Start the application
-CMD [ "node", "server.js" ]
+# Use the entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]
