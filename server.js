@@ -11,7 +11,7 @@ const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN
 
 
 async function createTicket(ticketData) {
-    const { subject, projectName, description, priorityName, accountableName, releaseDate, from } = ticketData;
+    const { subject, projectName, description, priorityName, accountableName, releaseDate, from  , attachments} = ticketData;
     
     // Fetch IDs from the partitioned data
     const projectID = getData("projects", projectName);
@@ -25,10 +25,18 @@ async function createTicket(ticketData) {
         throw new Error("Invalid project, assignee, type, or priority");
     }
 
+    let fullDescription = description;
+    if (attachments && attachments.length > 0) {
+        fullDescription += '\n\n**Attachments:**\n';
+        attachments.forEach(attachment => {
+            fullDescription += `- [${attachment.name}](${attachment.link})\n`;
+        });
+    }
+
     const requestBody = {
         "subject": subject,
         "_type": "WorkPackage",
-        "description": { "format": "markdown", "raw": description, "html": "" },
+        "description": { "format": "markdown", "raw": fullDescription, "html": "" },
         "customField16": { "format": "markdown", "raw": accountableName, "html": "" },
         "customField20": releaseDate,
         "_links": {
