@@ -25,6 +25,7 @@
     "@azure/msal-node": "^2.6.5",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "axios": "^1.8.2",
+    "blob": "^0.1.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "isomorphic-fetch": "^3.0.0",

@@ -108,9 +108,34 @@ function parseTicketData(content) {
     }
 }
 
+async function downloadFromOneDrive(fileId) {
+    try {
+        const token = await getAccessToken();
+        
+        console.log(`📥 Downloading file from OneDrive with ID: ${fileId}`);
+
+        const response = await axios({
+            method: 'get',
+            url: `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            responseType: 'arraybuffer'  // Important for handling binary files
+        });
+
+        console.log('✅ File downloaded successfully');
+        return response.data;
+    } catch (error) {
+        console.error('Error downloading file from OneDrive:', error.message);
+        throw error;
+    }
+}
+
 module.exports = {
     readNewTicketFiles,
     readFileContent,
     moveToArchive,
-    parseTicketData
+    parseTicketData,
+    downloadFromOneDrive  // Add this to exports
+
 };

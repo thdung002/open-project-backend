@@ -1,10 +1,12 @@
 const axios = require("axios");
 const { getData } = require("./dataService");
 const { readNewTicketFiles, readFileContent, moveToArchive, parseTicketData } = require("./onedriveService");
-const fs = require('fs');
 const path = require('path');
-const archiver = require('archiver');
+const { downloadFromOneDrive } = require('./onedriveService');
+const FormData = require('form-data');
 require("dotenv").config();
+const fs = require('fs');
+const os = require('os');
 
 const OPENPROJECT_API_URL = `${process.env.OPENPROJECT_URL}/work_packages`;
 const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN}`).toString("base64")}`;
@@ -26,11 +28,58 @@ async function createTicket(ticketData) {
     }
 
     let fullDescription = description;
+    let uploadedAttachments = [];
+
     if (attachments && attachments.length > 0) {
-        fullDescription += '\n\n**Attachments:**\n';
-        attachments.forEach(attachment => {
-            fullDescription += `- [${attachment.name}](${attachment.link})\n`;
-        });
+        // Upload each attachment and collect OpenProject links
+        for (const attachment of attachments) {
+            try {
+                // Download from OneDrive
+                const fileContent = await downloadFromOneDrive(attachment.id);
+                
+                // Create a temporary file
+                const tempFilePath = path.join(os.tmpdir(), attachment.name);
+                await fs.promises.writeFile(tempFilePath, fileContent);
+
+                // Create FormData
+                const formData = new FormData();
+                
+                // Append the metadata first
+                formData.append('metadata', JSON.stringify({
+                    fileName: attachment.name
+                }));
+
+                // Append the file from the temporary location
+                formData.append('file', fs.createReadStream(tempFilePath));
+
+                // Upload to OpenProject
+                const uploadResponse = await axios.post(`${process.env.OPENPROJECT_URL}/attachments`, 
+                    formData,
+                    {
+                        headers: {
+                            'Authorization': AUTH_HEADER,
+                            ...formData.getHeaders()
+                        }
+                    }
+                );
+                // Clean up temporary file
+                await fs.promises.unlink(tempFilePath);
+                uploadedAttachments.push({
+                    name: attachment.name,
+                    id: uploadResponse.data.id
+                });
+            } catch (error) {
+                console.error(`Error processing attachment ${attachment.name}:`, error);
+            }
+        }
+
+        // Add attachment links to description
+        if (uploadedAttachments.length > 0) {
+            fullDescription += '\n\n**Attachments:**\n';
+            uploadedAttachments.forEach(attachment => {
+                fullDescription += `<img class="op-uc-image" src="/api/v3/attachments/${attachment.id}/content">\n`;
+            });
+        }
     }
 
     const requestBody = {
@@ -44,7 +93,11 @@ async function createTicket(ticketData) {
             "assignee": { "href": `/api/v3/users/123` },
             "type": { "href": `/api/v3/types/6` },
             "priority": { "href": `/api/v3/priorities/${priorityID}` },
-            "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null
+            "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null,
+            "attachments": uploadedAttachments.map(attachment => ({
+                "href": `/api/v3/attachments/${attachment.id}`
+            }))
+
         }
     };
 
