@@ -13,18 +13,18 @@ const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN
 
 
 async function createTicket(ticketData) {
-    const { subject, projectName, description, priorityName, accountableName, releaseDate, from  , attachments} = ticketData;
+    const { subject, projectName, description, priorityName, accountableName, releaseDate, from ,assigneeName , attachments} = ticketData;
     
     // Fetch IDs from the partitioned data
     const projectID = getData("projects", projectName);
-    // const assigneeID = getData("users", assigneeName);
+    const assigneeID = getData("users", assigneeName);
     // const typeID = getData("types", typeName) || 1;
     const priorityID = getData("priorities", priorityName) || 7;
     const responsibleID = getData("users", from) || null;
 
     // Validate all IDs
-    if (!projectID || !priorityID) {
-        throw new Error("Invalid project, assignee, type, or priority");
+    if (!projectID || !priorityID || !assigneeID) {
+        throw new Error("Invalid project , assignee or priority");
     }
 
     let fullDescription = description;
@@ -90,7 +90,7 @@ async function createTicket(ticketData) {
         "customField20": releaseDate,
         "_links": {
             "project": { "href": `/api/v3/projects/${projectID}` },
-            "assignee": { "href": `/api/v3/users/123` },
+            "assignee": { "href": `/api/v3/users/${assigneeID}` },
             "type": { "href": `/api/v3/types/6` },
             "priority": { "href": `/api/v3/priorities/${priorityID}` },
             "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null,
