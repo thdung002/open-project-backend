@@ -16,7 +16,7 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build:  ## Build the Docker image
-	docker build -f Dockerfile-local -t $(IMAGE_NAME):$(VERSION) .
+	docker build -t $(IMAGE_NAME):$(VERSION) .
 	docker tag $(IMAGE_NAME):$(VERSION) $(REGISTRY)/$(IMAGE_NAME):$(VERSION)
 
 push: build
