@@ -1,12 +1,11 @@
 const axios = require('axios');
-const { getAccessToken, getDriveId } = require('./authHelper');
+const { getAccessToken } = require('./authHelper');
 require('dotenv').config();
 
 // Function to read files from the specified OneDrive folder
 async function readNewTicketFiles() {
     try {
         const token = await getAccessToken();
-        const driveId = await getDriveId();
         const folderPath = process.env.ONEDRIVE_FOLDER_PATH || '/new-ticket';
 
         console.log(`📂 Reading files from: ${folderPath}`);
