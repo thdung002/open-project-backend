@@ -20,8 +20,7 @@ async function createTicket(ticketData) {
     const assigneeID = getData("users", assigneeName);
     // const typeID = getData("types", typeName) || 1;
     const priorityID = getData("priorities", priorityName) || 7;
-    const responsibleID = getData("users", from) || null;
-    const accountableID = getData("users", accountableName) || null;
+    const responsibleID = getData("users", accountableName) || null;
 
     // Validate all IDs
     if (!projectID || !priorityID || !assigneeID) {
@@ -88,9 +87,6 @@ async function createTicket(ticketData) {
         "_type": "WorkPackage",
         "description": { "format": "markdown", "raw": fullDescription, "html": "" },
         "customField20": releaseDate,
-        ...(responsibleID === null && {
-            "customField16": { "format": "markdown", "raw": accountableName, "html": "" }
-        }),
         "_links": {
             "project": { "href": `/api/v3/projects/${projectID}` },
             "assignee": { "href": `/api/v3/users/${assigneeID}` },
@@ -101,8 +97,11 @@ async function createTicket(ticketData) {
             "attachments": uploadedAttachments.map(attachment => ({
                 "href": `/api/v3/attachments/${attachment.id}`
             }))
+        },
+        ...(responsibleID === null && {
+            "customField16": { "format": "markdown", "raw": accountableName, "html": "" }
+        }),
 
-        }
     };
 
     try {
