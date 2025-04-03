@@ -91,7 +91,6 @@ const loadData = async () => {
 
         const datasets = {
             projects: await fetchAllData("projects"),
-            users: await fetchAllData("users"),
             priorities: await fetchAllData("priorities"),
             types: await fetchAllData("types"),
             statuses: await fetchAllData("statuses")
@@ -101,11 +100,17 @@ const loadData = async () => {
             const formattedData = Object.fromEntries(value.map(item => [item.name, item.id]));
             saveToFile(`${key}.json`, formattedData);
         });
-
+        saveToFile('users.json', DEFAULT_USERS)
         console.log("✅ Data Loaded Successfully");
     } catch (error) {
         console.error("❌ Error loading data:", error.response?.data || error.message);
     }
+};
+
+// Default users data
+const DEFAULT_USERS = {
+    "Nhi Dam Ngoc Yen": 123,
+    "Nhan Nguyen Gia Ai": 138
 };
 
 // First-run check: If `cachedData` is null, fetch data immediately
