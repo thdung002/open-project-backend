@@ -17,7 +17,7 @@ async function createTicket(ticketData) {
     
     // Fetch IDs from the partitioned data
     const projectID = getData("projects", projectName);
-    const assigneeID = getData("users", assigneeName);
+    let assigneeID = getData("users", assigneeName);
     // const typeID = getData("types", typeName) || 1;
     const priorityID = getData("priorities", priorityName) || 7;
     const responsibleID = getData("users", accountableName) || null;
@@ -26,7 +26,7 @@ async function createTicket(ticketData) {
     if (!projectID || !priorityID || !assigneeID) {
         throw new Error("Invalid project , assignee or priority");
     }
-
+    let note = '\n\n**Accountable:**\n'+`${accountableName}`;
     let fullDescription = description;
     let uploadedAttachments = [];
 
@@ -81,30 +81,30 @@ async function createTicket(ticketData) {
             });
         }
     }
-
-    const requestBody = {
-        "subject": subject,
-        "_type": "WorkPackage",
-        "description": { "format": "markdown", "raw": fullDescription, "html": "" },
-        "customField20": releaseDate,
-        "_links": {
-            "project": { "href": `/api/v3/projects/${projectID}` },
-            "assignee": { "href": `/api/v3/users/${assigneeID}` },
-            "type": { "href": `/api/v3/types/6` },
-            "responsible":{ "href": `/api/v3/users/${responsibleID}` },
-            "priority": { "href": `/api/v3/priorities/${priorityID}` },
-            "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null,
-            "attachments": uploadedAttachments.map(attachment => ({
-                "href": `/api/v3/attachments/${attachment.id}`
-            }))
-        },
-        ...(responsibleID === null && {
-            "customField16": { "format": "markdown", "raw": accountableName, "html": "" }
-        }),
-
-    };
-
     try {
+        const requestBody = {
+            "subject": subject,
+            "_type": "WorkPackage",
+            "description": { "format": "markdown", "raw": fullDescription, "html": "" },
+            "customField20": releaseDate,
+            "_links": {
+                "project": { "href": `/api/v3/projects/${projectID}` },
+                "assignee": { "href": `/api/v3/users/${assigneeID}` },
+                "type": { "href": `/api/v3/types/6` },
+                "responsible":{ "href": `/api/v3/users/${responsibleID}` },
+                "priority": { "href": `/api/v3/priorities/${priorityID}` },
+                "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null,
+                "attachments": uploadedAttachments.map(attachment => ({
+                    "href": `/api/v3/attachments/${attachment.id}`
+                }))
+            },
+            ...(responsibleID === null && {
+                "customField16": { "format": "markdown", "raw": note, "html": "" }
+            }),
+    
+        };
+    
+    
         const response = await axios.post(OPENPROJECT_API_URL, requestBody, {
             headers: {
                 "Authorization": AUTH_HEADER,
@@ -112,12 +112,48 @@ async function createTicket(ticketData) {
             }
         });
         return response.data;
-    } catch (error) {
-        console.error('OpenProject API Error:', error.response?.data || error.message);
+    } catch (error) {        // Check if error is about accountable permission
+        if (error.response?.data?.message?.includes('The chosen user is not allowed')) {
+            console.log('⚠️ permission error, retrying with customField16...');
+            if (error.response?.data?.message?.includes('Assignee')){
+                assigneeID = null;
+                note += '\n\n**Assignee:**\n' + `${assigneeName}`
+            }            
+            // Retry with customField16 instead
+            const retryRequestBody = {
+                "subject": subject,
+                "_type": "WorkPackage",
+                "description": { "format": "markdown", "raw": fullDescription, "html": "" },
+                "customField20": releaseDate,
+                "customField16": { "format": "markdown", "raw": note, "html": "" },
+                "_links": {
+                    "project": { "href": `/api/v3/projects/${projectID}` },
+                    ...(assigneeID != null && { "assignee": { "href": `/api/v3/users/${assigneeID}` } }),
+                    "type": { "href": `/api/v3/types/6` },
+                    "priority": { "href": `/api/v3/priorities/${priorityID}` },
+                    "attachments": uploadedAttachments.map(attachment => ({
+                        "href": `/api/v3/attachments/${attachment.id}`
+                    }))
+                }
+            };
+
+            try {
+                const retryResponse = await axios.post(OPENPROJECT_API_URL, retryRequestBody, {
+                    headers: {
+                        "Authorization": AUTH_HEADER,
+                        "Content-Type": "application/json"
+                    }
+                });
+                return retryResponse.data;
+            } catch (retryError) {
+                throw new Error(`Failed to create ticket on retry: ${retryError.response?.data?.message || retryError.message}`);
+            }
+        }
+        
+        // If it's not an accountable error, throw the original error
         throw new Error(`Failed to create ticket: ${error.response?.data?.message || error.message}`);
     }
 }
-
 // Function to process files from OneDrive
 async function processNewTickets() {
     try {
