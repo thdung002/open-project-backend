@@ -21,6 +21,7 @@ async function createTicket(ticketData) {
     // const typeID = getData("types", typeName) || 1;
     const priorityID = getData("priorities", priorityName) || 7;
     const responsibleID = getData("users", from) || null;
+    const accountableID = getData("users", accountableName) || null;
 
     // Validate all IDs
     if (!projectID || !priorityID || !assigneeID) {
@@ -86,12 +87,15 @@ async function createTicket(ticketData) {
         "subject": subject,
         "_type": "WorkPackage",
         "description": { "format": "markdown", "raw": fullDescription, "html": "" },
-        "customField16": { "format": "markdown", "raw": accountableName, "html": "" },
         "customField20": releaseDate,
+        ...(responsibleID === null && {
+            "customField16": { "format": "markdown", "raw": accountableName, "html": "" }
+        }),
         "_links": {
             "project": { "href": `/api/v3/projects/${projectID}` },
             "assignee": { "href": `/api/v3/users/${assigneeID}` },
             "type": { "href": `/api/v3/types/6` },
+            "responsible":{ "href": `/api/v3/users/${responsibleID}` },
             "priority": { "href": `/api/v3/priorities/${priorityID}` },
             "responsible": responsibleID ? { "href": `/api/v3/users/${responsibleID}` } : null,
             "attachments": uploadedAttachments.map(attachment => ({

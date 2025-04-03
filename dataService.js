@@ -110,7 +110,11 @@ const loadData = async () => {
 // Default users data
 const DEFAULT_USERS = {
     "Nhi Dam Ngoc Yen": 123,
-    "Nhan Nguyen Gia Ai": 138
+    "Nhan Nguyen Gia Ai": 138,
+    "Hanh Tran": 7,
+    "Hendry Ding": 6,
+    "Thong Lu": 5,
+    "Phuoc Tran Tan": 81
 };
 
 // First-run check: If `cachedData` is null, fetch data immediately
