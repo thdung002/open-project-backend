@@ -89,7 +89,7 @@ async function processFailedUpdates() {
 }
 
 // Schedule retry of failed updates every 5 minutes
-setInterval(processFailedUpdates, 1 * 60 * 1000);
+setInterval(processFailedUpdates, 5 * 60 * 1000);
 
 // Function to read files from the specified OneDrive folder
 async function readNewTicketFiles() {
