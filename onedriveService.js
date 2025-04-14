@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { getAccessToken } = require('./authHelper');
+const ExcelJS = require('exceljs');
 require('dotenv').config();
 
 // Function to read files from the specified OneDrive folder
@@ -130,11 +131,109 @@ async function downloadFromOneDrive(fileId) {
     }
 }
 
+// Function to update Excel file with work package history
+async function updateWorkPackageHistory(workPackage) {
+    try {
+        // Get the Excel file from OneDrive
+        const excelPath = '/history-openproject.xlsx';
+        let workbook = new ExcelJS.Workbook();
+        let worksheet;
+        let excelFileId = null;
+
+        try {
+            // Try to get existing file
+            const response = await axios.get(
+                `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            excelFileId = response.data.id;
+            
+            // Download the file content
+            const fileContent = await axios.get(
+                `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    },
+                    responseType: 'arraybuffer'
+                }
+            );
+            
+            // Load the workbook
+            await workbook.xlsx.load(fileContent.data);
+            worksheet = workbook.getWorksheet('Work Packages');
+        } catch (error) {
+            if (error.response?.status === 404) {
+                // File doesn't exist, create new worksheet
+                worksheet = workbook.addWorksheet('Work Packages');
+                
+                // Add headers
+                worksheet.columns = [
+                    { header: 'ID', key: 'id', width: 10 },
+                    { header: 'Subject', key: 'subject', width: 50 },
+                    { header: 'Created on', key: 'createdOn', width: 20 },
+                    { header: 'Link', key: 'link', width: 50 }
+                ];
+                
+                // Style the header row
+                worksheet.getRow(1).font = { bold: true };
+            } else {
+                throw error;
+            }
+        }
+
+        // Add new row
+        worksheet.addRow({
+            id: workPackage.id,
+            subject: workPackage.subject,
+            createdOn: new Date(workPackage.createdAt).toLocaleString(),
+            link: `${process.env.OPENPROJECT_URL}/work_packages/${workPackage.id}`
+        });
+
+        // Convert workbook to buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        if (excelFileId) {
+            // Update existing file
+            await axios.put(
+                `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
+                buffer,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    }
+                }
+            );
+        } else {
+            // Create new file
+            await axios.put(
+                `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}:/content`,
+                buffer,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    }
+                }
+            );
+        }
+
+        console.log('✅ Updated work package history in OneDrive Excel file');
+    } catch (error) {
+        console.error('Error updating work package history:', error);
+    }
+}
+
 module.exports = {
     readNewTicketFiles,
     readFileContent,
     moveToArchive,
     parseTicketData,
-    downloadFromOneDrive  // Add this to exports
-
+    downloadFromOneDrive,
+    updateWorkPackageHistory
 };

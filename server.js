@@ -1,8 +1,14 @@
 const axios = require("axios");
 const { getData } = require("./dataService");
-const { readNewTicketFiles, readFileContent, moveToArchive, parseTicketData } = require("./onedriveService");
+const { 
+    readNewTicketFiles, 
+    readFileContent, 
+    moveToArchive, 
+    parseTicketData, 
+    downloadFromOneDrive,
+    updateWorkPackageHistory 
+} = require("./onedriveService");
 const path = require('path');
-const { downloadFromOneDrive } = require('./onedriveService');
 const FormData = require('form-data');
 require("dotenv").config();
 const fs = require('fs');
@@ -11,20 +17,18 @@ const os = require('os');
 const OPENPROJECT_API_URL = `${process.env.OPENPROJECT_URL}/work_packages`;
 const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN}`).toString("base64")}`;
 
-
 async function createTicket(ticketData) {
-    const { subject, projectName, description, priorityName, accountableName, releaseDate, from ,assigneeName , attachments} = ticketData;
+    const { subject, projectName, description, priorityName, accountableName, releaseDate, from, assigneeName, attachments } = ticketData;
     
     // Fetch IDs from the partitioned data
     const projectID = getData("projects", projectName);
     let assigneeID = getData("users", assigneeName);
-    // const typeID = getData("types", typeName) || 1;
     const priorityID = getData("priorities", priorityName) || 7;
     const responsibleID = getData("users", accountableName) || null;
 
     // Validate all IDs
     if (!projectID || !priorityID || !assigneeID) {
-        throw new Error("Invalid project , assignee or priority");
+        throw new Error("Invalid project, assignee or priority");
     }
     let note = '\n\n**Accountable:**\n'+`${accountableName}`;
     let fullDescription = description;
@@ -81,6 +85,7 @@ async function createTicket(ticketData) {
             });
         }
     }
+
     try {
         const requestBody = {
             "subject": subject,
@@ -100,19 +105,22 @@ async function createTicket(ticketData) {
             },
             ...(responsibleID === null && {
                 "customField16": { "format": "markdown", "raw": note, "html": "" }
-            }),
-    
+            })
         };
-    
-    
+
         const response = await axios.post(OPENPROJECT_API_URL, requestBody, {
             headers: {
                 "Authorization": AUTH_HEADER,
                 "Content-Type": "application/json"
             }
         });
+
+        // Update Excel file with the new work package
+        await updateWorkPackageHistory(response.data);
+        
         return response.data;
-    } catch (error) {        // Check if error is about accountable permission
+    } catch (error) {
+        // Check if error is about accountable permission
         if (error.response?.data?.message?.includes('The chosen user is not allowed')) {
             console.log('⚠️ permission error, retrying with customField16...');
             if (error.response?.data?.message?.includes('Assignee')){
@@ -144,6 +152,10 @@ async function createTicket(ticketData) {
                         "Content-Type": "application/json"
                     }
                 });
+                
+                // Update Excel file with the new work package
+                await updateWorkPackageHistory(retryResponse.data);
+                
                 return retryResponse.data;
             } catch (retryError) {
                 throw new Error(`Failed to create ticket on retry: ${retryError.response?.data?.message || retryError.message}`);
@@ -154,6 +166,7 @@ async function createTicket(ticketData) {
         throw new Error(`Failed to create ticket: ${error.response?.data?.message || error.message}`);
     }
 }
+
 // Function to process files from OneDrive
 async function processNewTickets() {
     try {
