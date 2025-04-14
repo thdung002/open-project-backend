@@ -1,7 +1,95 @@
 const axios = require('axios');
 const { getAccessToken } = require('./authHelper');
 const ExcelJS = require('exceljs');
+const fs = require('fs').promises;
+const path = require('path');
 require('dotenv').config();
+
+// Queue file path
+const QUEUE_FILE = path.join(__dirname, './json/failed_updates_queue.json');
+
+// Function to load queue from file
+async function loadQueue() {
+    try {
+        const data = await fs.readFile(QUEUE_FILE, 'utf8');
+        if (!data.trim()) {
+            return new Set();
+        }
+        const queueData = JSON.parse(data);
+        return new Set(queueData); // Direct parse of the array of objects
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            await fs.writeFile(QUEUE_FILE, '[]', 'utf8');
+            return new Set();
+        }
+        console.error('Error loading queue:', error);
+        return new Set();
+    }
+}
+
+// Function to save queue to file
+async function saveQueue(queue) {
+    try {
+        // Ensure we only save essential data
+        const essentialQueue = Array.from(queue).map(wp => ({
+            id: wp.id,
+            subject: wp.subject,
+            createdAt: wp.createdAt
+        }));
+        const data = JSON.stringify(essentialQueue, null, 2);
+        await fs.writeFile(QUEUE_FILE, data, 'utf8');
+        console.log(`💾 Saved ${queue.size} items to queue`);
+    } catch (error) {
+        console.error('Error saving queue:', error);
+    }
+}
+
+// Queue for failed Excel updates
+let failedUpdatesQueue = new Set();
+
+// Initialize queue from file
+loadQueue().then(queue => {
+    failedUpdatesQueue = queue;
+    console.log(`📝 Loaded ${queue.size} items from queue file`);
+}).catch(error => {
+    console.error('Failed to initialize queue:', error);
+    failedUpdatesQueue = new Set();
+});
+
+// Function to process failed updates queue
+async function processFailedUpdates() {
+    if (failedUpdatesQueue.size === 0) {
+        console.log('No failed updates to process');
+        return;
+    }
+
+    console.log(`🔄 Processing ${failedUpdatesQueue.size} failed Excel updates...`);
+    const updatesToRetry = Array.from(failedUpdatesQueue);
+    let hasSuccess = false;
+
+    for (const workPackage of updatesToRetry) {
+        try {
+            console.log(`⏳ Attempting to process work package ${workPackage.id}...`);
+            await updateWorkPackageHistory(workPackage, true);
+            console.log(`✅ Successfully processed work package ${workPackage.id}`);
+            failedUpdatesQueue.delete(workPackage);
+            hasSuccess = true;
+        } catch (error) {
+            console.error(`❌ Failed to process work package ${workPackage.id}:`, error.message);
+            // Keep the failed item in queue
+            console.log(`⏳ Keeping work package ${workPackage.id} in retry queue`);
+        }
+    }
+
+    // Only save queue if we had at least one successful update
+    if (hasSuccess) {
+        await saveQueue(failedUpdatesQueue);
+        console.log(`📊 Updated queue file. ${failedUpdatesQueue.size} items remaining`);
+    }
+}
+
+// Schedule retry of failed updates every 5 minutes
+setInterval(processFailedUpdates, 1 * 60 * 1000);
 
 // Function to read files from the specified OneDrive folder
 async function readNewTicketFiles() {
@@ -132,15 +220,20 @@ async function downloadFromOneDrive(fileId) {
 }
 
 // Function to update Excel file with work package history
-// Function to update Excel file with work package history
-async function updateWorkPackageHistory(workPackage) {
+async function updateWorkPackageHistory(workPackage, isRetry = false) {
     try {
-        // Get the Excel file from OneDrive
+        const token = await getAccessToken();
         const excelPath = '/history-openproject.xlsx';
         let workbook = new ExcelJS.Workbook();
         let worksheet;
         let excelFileId = null;
-        const token = await getAccessToken();
+
+        // Extract only needed fields from work package
+        const essentialData = {
+            id: workPackage.id,
+            subject: workPackage.subject,
+            createdAt: workPackage.createdAt
+        };
 
         try {
             // Try to get existing file
@@ -169,7 +262,7 @@ async function updateWorkPackageHistory(workPackage) {
             await workbook.xlsx.load(fileContent.data);
             worksheet = workbook.getWorksheet('Work Packages');
             
-            // If worksheet doesn't exist, create it
+            // Get worksheet
             if (!worksheet) {
                 worksheet = workbook.addWorksheet('Work Packages');
                 // Add headers
@@ -182,89 +275,88 @@ async function updateWorkPackageHistory(workPackage) {
                 // Style the header row
                 worksheet.getRow(1).font = { bold: true };
             }
-        } catch (error) {
-            if (error.response?.status === 404) {
-                // File doesn't exist, create new worksheet
-                worksheet = workbook.addWorksheet('Work Packages');
-                
-                // Add headers
-                worksheet.columns = [
-                    { header: 'ID', key: 'id', width: 10 },
-                    { header: 'Subject', key: 'subject', width: 50 },
-                    { header: 'Created on', key: 'createdOn', width: 20 },
-                    { header: 'Link', key: 'link', width: 50 }
-                ];
-                
-                // Style the header row
-                worksheet.getRow(1).font = { bold: true };
-            } else {
-                console.error('Error accessing Excel file:', error);
-                throw error;
+
+            // Check if work package already exists to avoid duplicates
+            let exists = false;
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 1 && row.values[1] == essentialData.id) {
+                    exists = true;
+                    console.log(`Work package ${essentialData.id} already exists in row ${rowNumber}`);
+                }
+            });
+
+            if (!exists) {
+                const rowCount = worksheet.rowCount || 1;
+                console.log(`Current row count: ${rowCount}`);
+
+                const newRow = worksheet.addRow([
+                    essentialData.id,
+                    essentialData.subject,
+                    new Date(essentialData.createdAt).toLocaleString(),
+                    `${process.env.OPENPROJECT_URL}/work_packages/${essentialData.id}`
+                ]);
+
+                console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
             }
-        }
 
-        // Verify worksheet exists before adding row
-        if (!worksheet) {
-            throw new Error('Worksheet could not be initialized');
-        }
+            // Convert workbook to buffer
+            const buffer = await workbook.xlsx.writeBuffer();
 
-        // Add new row
-        worksheet.addRow({
-            id: workPackage.id,
-            subject: workPackage.subject,
-            createdOn: new Date(workPackage.createdAt).toLocaleString(),
-            link: `${process.env.OPENPROJECT_URL}/work_packages/${workPackage.id}`
-        });
-
-        // Convert workbook to buffer
-        const buffer = await workbook.xlsx.writeBuffer();
-
-        // Function to attempt file upload with retries
-        const uploadFile = async (retryCount = 0) => {
             try {
-                if (excelFileId) {
-                    // Update existing file
-                    await axios.put(
-                        `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
-                        buffer,
-                        {
-                            headers: {
-                                Authorization: `Bearer ${token}`,
-                                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                            }
+                // Update the original file directly
+                await axios.put(
+                    `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
+                    buffer,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                         }
-                    );
-                } else {
-                    // Create new file
-                    await axios.put(
-                        `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}:/content`,
-                        buffer,
-                        {
-                            headers: {
-                                Authorization: `Bearer ${token}`,
-                                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                            }
-                        }
-                    );
+                    }
+                );
+
+                console.log('✅ Updated work package history in OneDrive Excel file');
+                
+                // If this was a retry, remove from queue
+                if (isRetry) {
+                    failedUpdatesQueue.delete(workPackage);
+                    await saveQueue(failedUpdatesQueue);
+                    console.log(`✅ Removed work package ${workPackage.id} from retry queue`);
                 }
             } catch (error) {
-                if (error.response?.status === 423 && retryCount < 5) {
-                    // Wait for 2 seconds before retrying
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    console.log(`Retrying file upload (attempt ${retryCount + 1})...`);
-                    return uploadFile(retryCount + 1);
+                console.error('Error updating Excel file:', error);
+                
+                // If not a retry attempt, add to queue
+                if (!isRetry) {
+                    failedUpdatesQueue.add(workPackage);
+                    await saveQueue(failedUpdatesQueue);
+                    console.log(`📝 Added work package ${workPackage.id} to retry queue`);
                 }
-                throw error;
             }
-        };
-
-        // Attempt to upload the file with retries
-        await uploadFile();
-
-        console.log('✅ Updated work package history in OneDrive Excel file');
+        } catch (error) {
+            console.error('Error in Excel operations:', error.message);
+            if (!isRetry) {
+                // Add only essential data to queue
+                failedUpdatesQueue.add(essentialData);
+                await saveQueue(failedUpdatesQueue);
+                console.log(`📝 Added work package ${essentialData.id} to retry queue`);
+            }
+            throw error; // Re-throw to handle in outer catch
+        }
     } catch (error) {
-        console.error('Error updating work package history:', error);
-        throw error;
+        console.error('Error in updateWorkPackageHistory:', error.message);
+        if (!isRetry) {
+            // Add only essential data to queue
+            const essentialData = {
+                id: workPackage.id,
+                subject: workPackage.subject,
+                createdAt: workPackage.createdAt
+            };
+            failedUpdatesQueue.add(essentialData);
+            await saveQueue(failedUpdatesQueue);
+            console.log(`📝 Added work package ${essentialData.id} to retry queue`);
+        }
+        throw error; // Re-throw to properly handle retry logic
     }
 }
 
@@ -274,5 +366,6 @@ module.exports = {
     moveToArchive,
     parseTicketData,
     downloadFromOneDrive,
-    updateWorkPackageHistory
+    updateWorkPackageHistory,
+    processFailedUpdates
 };
