@@ -38,7 +38,7 @@ async function saveQueue(queue) {
         }));
         const data = JSON.stringify(essentialQueue, null, 2);
         await fs.writeFile(QUEUE_FILE, data, 'utf8');
-        console.log(`💾 Saved ${queue.size} items to queue`);
+        // console.log(`💾 Saved ${queue.size} items to queue`);
     } catch (error) {
         console.error('Error saving queue:', error);
     }
@@ -50,7 +50,7 @@ let failedUpdatesQueue = new Set();
 // Initialize queue from file
 loadQueue().then(queue => {
     failedUpdatesQueue = queue;
-    console.log(`📝 Loaded ${queue.size} items from queue file`);
+    // console.log(`📝 Loaded ${queue.size} items from queue file`);
 }).catch(error => {
     console.error('Failed to initialize queue:', error);
     failedUpdatesQueue = new Set();
@@ -59,32 +59,32 @@ loadQueue().then(queue => {
 // Function to process failed updates queue
 async function processFailedUpdates() {
     if (failedUpdatesQueue.size === 0) {
-        console.log('No failed updates to process');
+        // console.log('No failed updates to process');
         return;
     }
 
-    console.log(`🔄 Processing ${failedUpdatesQueue.size} failed Excel updates...`);
+    // console.log(`🔄 Processing ${failedUpdatesQueue.size} failed Excel updates...`);
     const updatesToRetry = Array.from(failedUpdatesQueue);
     let hasSuccess = false;
 
     for (const workPackage of updatesToRetry) {
         try {
-            console.log(`⏳ Attempting to process work package ${workPackage.id}...`);
+            // console.log(`⏳ Attempting to process work package ${workPackage.id}...`);
             await updateWorkPackageHistory(workPackage, true);
-            console.log(`✅ Successfully processed work package ${workPackage.id}`);
+            // console.log(`✅ Successfully processed work package ${workPackage.id}`);
             failedUpdatesQueue.delete(workPackage);
             hasSuccess = true;
         } catch (error) {
             console.error(`❌ Failed to process work package ${workPackage.id}:`, error.message);
             // Keep the failed item in queue
-            console.log(`⏳ Keeping work package ${workPackage.id} in retry queue`);
+            // console.log(`⏳ Keeping work package ${workPackage.id} in retry queue`);
         }
     }
 
     // Only save queue if we had at least one successful update
     if (hasSuccess) {
         await saveQueue(failedUpdatesQueue);
-        console.log(`📊 Updated queue file. ${failedUpdatesQueue.size} items remaining`);
+        // console.log(`📊 Updated queue file. ${failedUpdatesQueue.size} items remaining`);
     }
 }
 
@@ -97,7 +97,7 @@ async function readNewTicketFiles() {
         const token = await getAccessToken();
         const folderPath = process.env.ONEDRIVE_FOLDER_PATH || '/new-ticket';
 
-        console.log(`📂 Reading files from: ${folderPath}`);
+        // console.log(`📂 Reading files from: ${folderPath}`);
 
         // Get files from OneDrive folder
         const response = await axios.get(
@@ -111,13 +111,13 @@ async function readNewTicketFiles() {
         );
 
         if (!response.data || !response.data.value) {
-            console.log('No files found in the new ticket folder');
+            // console.log('No files found in the new ticket folder');
             return [];
         }
 
         // Filter for only JSON files
         const files = response.data.value.filter(file => file.name.endsWith('.json'));
-        console.log(`Found ${files.length} JSON files in the new ticket folder`);
+        // console.log(`Found ${files.length} JSON files in the new ticket folder`);
         return files;
     } catch (error) {
         console.error('Error reading files from OneDrive:', error.message);
@@ -130,7 +130,7 @@ async function readFileContent(fileId) {
     try {
         const token = await getAccessToken();
 
-        console.log(`📄 Reading file content for ID: ${fileId}`);
+        // console.log(`📄 Reading file content for ID: ${fileId}`);
 
         // Get file content from OneDrive
         const response = await axios.get(
@@ -143,7 +143,7 @@ async function readFileContent(fileId) {
             }
         );
 
-        console.log('✅ File content retrieved successfully');
+        // console.log('✅ File content retrieved successfully');
         return response.data;
     } catch (error) {
         console.error('Error reading file content:', error.message);
@@ -157,7 +157,7 @@ async function moveToArchive(fileId) {
         const token = await getAccessToken();
         const archivePath = process.env.ONEDRIVE_ARCHIVE_PATH || '/new-ticket/archive';
 
-        console.log(`📦 Moving file ${fileId} to archive: ${archivePath}`);
+        // console.log(`📦 Moving file ${fileId} to archive: ${archivePath}`);
 
         // Move file to archive folder in OneDrive
         await axios.patch(
@@ -175,7 +175,7 @@ async function moveToArchive(fileId) {
             }
         );
         
-        console.log('✅ File moved to archive successfully');
+        // console.log('✅ File moved to archive successfully');
     } catch (error) {
         console.error('Error moving file to archive:', error.message);
         throw error;
@@ -185,7 +185,7 @@ async function moveToArchive(fileId) {
 // Function to process ticket data from file content
 function parseTicketData(content) {
     try {
-        console.log('🔍 Parsing ticket data...');
+        // console.log('🔍 Parsing ticket data...');
         if (typeof content === 'string') {
             return JSON.parse(content);
         }
@@ -200,7 +200,7 @@ async function downloadFromOneDrive(fileId) {
     try {
         const token = await getAccessToken();
         
-        console.log(`📥 Downloading file from OneDrive with ID: ${fileId}`);
+        // console.log(`📥 Downloading file from OneDrive with ID: ${fileId}`);
 
         const response = await axios({
             method: 'get',
@@ -211,7 +211,7 @@ async function downloadFromOneDrive(fileId) {
             responseType: 'arraybuffer'  // Important for handling binary files
         });
 
-        console.log('✅ File downloaded successfully');
+        // console.log('✅ File downloaded successfully');
         return response.data;
     } catch (error) {
         console.error('Error downloading file from OneDrive:', error.message);
@@ -281,13 +281,13 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             worksheet.eachRow((row, rowNumber) => {
                 if (rowNumber > 1 && row.values[1] == essentialData.id) {
                     exists = true;
-                    console.log(`Work package ${essentialData.id} already exists in row ${rowNumber}`);
+                    // console.log(`Work package ${essentialData.id} already exists in row ${rowNumber}`);
                 }
             });
 
             if (!exists) {
                 const rowCount = worksheet.rowCount || 1;
-                console.log(`Current row count: ${rowCount}`);
+                // console.log(`Current row count: ${rowCount}`);
 
                 const newRow = worksheet.addRow([
                     essentialData.id,
@@ -296,7 +296,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                     `${process.env.OPENPROJECT_URL}/work_packages/${essentialData.id}`
                 ]);
 
-                console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
+                // console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
             }
 
             // Convert workbook to buffer
@@ -321,7 +321,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                 if (isRetry) {
                     failedUpdatesQueue.delete(workPackage);
                     await saveQueue(failedUpdatesQueue);
-                    console.log(`✅ Removed work package ${workPackage.id} from retry queue`);
+                    // console.log(`✅ Removed work package ${workPackage.id} from retry queue`);
                 }
             } catch (error) {
                 console.error('Error updating Excel file:', error);
@@ -330,7 +330,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                 if (!isRetry) {
                     failedUpdatesQueue.add(workPackage);
                     await saveQueue(failedUpdatesQueue);
-                    console.log(`📝 Added work package ${workPackage.id} to retry queue`);
+                    // console.log(`📝 Added work package ${workPackage.id} to retry queue`);
                 }
             }
         } catch (error) {
@@ -339,7 +339,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                 // Add only essential data to queue
                 failedUpdatesQueue.add(essentialData);
                 await saveQueue(failedUpdatesQueue);
-                console.log(`📝 Added work package ${essentialData.id} to retry queue`);
+                // console.log(`📝 Added work package ${essentialData.id} to retry queue`);
             }
             throw error; // Re-throw to handle in outer catch
         }
@@ -354,7 +354,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             };
             failedUpdatesQueue.add(essentialData);
             await saveQueue(failedUpdatesQueue);
-            console.log(`📝 Added work package ${essentialData.id} to retry queue`);
+            // console.log(`📝 Added work package ${essentialData.id} to retry queue`);
         }
         throw error; // Re-throw to properly handle retry logic
     }

@@ -122,7 +122,7 @@ async function createTicket(ticketData) {
     } catch (error) {
         // Check if error is about accountable permission
         if (error.response?.data?.message?.includes('The chosen user is not allowed')) {
-            console.log('⚠️ permission error, retrying with customField16...');
+            // console.log('⚠️ permission error, retrying with customField16...');
             if (error.response?.data?.message?.includes('Assignee')){
                 assigneeID = null;
                 note += '\n\n**Assignee:**\n' + `${assigneeName}`
@@ -170,12 +170,12 @@ async function createTicket(ticketData) {
 // Function to process files from OneDrive
 async function processNewTickets() {
     try {
-        console.log("🔍 Checking for new tickets in OneDrive...");
+        // console.log("🔍 Checking for new tickets in OneDrive...");
         const files = await readNewTicketFiles();
 
         for (const file of files) {
             try {
-                console.log(`📄 Processing file: ${file.name}`);
+                // console.log(`📄 Processing file: ${file.name}`);
                 const content = await readFileContent(file.id);
                 const ticketData = parseTicketData(content);
                 

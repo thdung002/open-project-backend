@@ -68,7 +68,7 @@ async function getDriveId() {
             throw new Error('Drive ID not found in the response');
         }
 
-        console.log('✅ Found Drive:', response.data.name, '(ID:', response.data.id + ')');
+        // console.log('✅ Found Drive:', response.data.name, '(ID:', response.data.id + ')');
         return response.data.id;
     } catch (error) {
         console.error('\n❌ Error getting drive ID:');

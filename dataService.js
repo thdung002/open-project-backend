@@ -23,7 +23,7 @@ const saveToFile = (fileName, data) => {
     try {
         const filePath = path.join(DATA_DIR, fileName);
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
-        console.log(`💾 Data saved to ${fileName}`);
+        // console.log(`💾 Data saved to ${fileName}`);
     } catch (error) {
         console.error(`❌ Error saving ${fileName}:`, error);
     }
@@ -53,31 +53,31 @@ const fetchAllData = async (endpoint) => {
         let total = null; // Store total count from API
 
         while (true) {
-            console.log(`🔄 Fetching ${endpoint} - Offset: ${offset}, PageSize: ${pageSize}`);
+            // console.log(`🔄 Fetching ${endpoint} - Offset: ${offset}, PageSize: ${pageSize}`);
 
             const response = await axios.get(`${BASE_URL}/${endpoint}?offset=${offset}&pageSize=${pageSize}`,AUTH_HEADER);
 
             if (response.data._embedded && response.data._embedded.elements.length > 0) {
                 results.push(...response.data._embedded.elements); // Append new data
             } else {
-                console.log(`🚨 No more data found for ${endpoint}, stopping.`);
+                // console.log(`🚨 No more data found for ${endpoint}, stopping.`);
                 break; // Stop if no more elements
             }
 
             // Get total count from the first request
             if (total === null) {
                 total = response.data.total;
-                console.log(`📊 Total records for ${endpoint}: ${total}`);
+                // console.log(`📊 Total records for ${endpoint}: ${total}`);
             }
 
-            console.log(`✅ Fetched ${endpoint} so far: ${results.length} / ${total}`);
+            // console.log(`✅ Fetched ${endpoint} so far: ${results.length} / ${total}`);
 
             if (results.length >= total) break; // Stop if all records are retrieved
 
             offset += 1; // Increase offset for the next batch
         }
 
-        console.log(`✅ Fully fetched ${results.length} ${endpoint} records`);
+        // console.log(`✅ Fully fetched ${results.length} ${endpoint} records`);
         return results;
     } catch (error) {
         console.error(`❌ Error fetching ${endpoint}:`, error.response?.data || error.message);
@@ -87,7 +87,7 @@ const fetchAllData = async (endpoint) => {
 // Fetch all data and store in memory
 const loadData = async () => {
     try {
-        console.log("🔄 Fetching fresh data from OpenProject...");
+        // console.log("🔄 Fetching fresh data from OpenProject...");
 
         const datasets = {
             projects: await fetchAllData("projects"),
@@ -101,7 +101,7 @@ const loadData = async () => {
             saveToFile(`${key}.json`, formattedData);
         });
         saveToFile('users.json', DEFAULT_USERS)
-        console.log("✅ Data Loaded Successfully");
+        // console.log("✅ Data Loaded Successfully");
     } catch (error) {
         console.error("❌ Error loading data:", error.response?.data || error.message);
     }
@@ -124,7 +124,7 @@ const initializeData = async () => {
 
     categories.forEach(category => {
         if (!fs.existsSync(path.join(DATA_DIR, `${category}.json`))) {
-            console.log(`⚠️ Missing ${category}.json, fetching fresh data...`);
+            // console.log(`⚠️ Missing ${category}.json, fetching fresh data...`);
             missingData = true;
         }
     });
