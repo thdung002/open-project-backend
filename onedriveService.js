@@ -139,6 +139,7 @@ async function updateWorkPackageHistory(workPackage) {
         let workbook = new ExcelJS.Workbook();
         let worksheet;
         let excelFileId = null;
+        const token = await getAccessToken();
 
         try {
             // Try to get existing file
@@ -166,6 +167,20 @@ async function updateWorkPackageHistory(workPackage) {
             // Load the workbook
             await workbook.xlsx.load(fileContent.data);
             worksheet = workbook.getWorksheet('Work Packages');
+            
+            // If worksheet doesn't exist, create it
+            if (!worksheet) {
+                worksheet = workbook.addWorksheet('Work Packages');
+                // Add headers
+                worksheet.columns = [
+                    { header: 'ID', key: 'id', width: 10 },
+                    { header: 'Subject', key: 'subject', width: 50 },
+                    { header: 'Created on', key: 'createdOn', width: 20 },
+                    { header: 'Link', key: 'link', width: 50 }
+                ];
+                // Style the header row
+                worksheet.getRow(1).font = { bold: true };
+            }
         } catch (error) {
             if (error.response?.status === 404) {
                 // File doesn't exist, create new worksheet
@@ -182,8 +197,14 @@ async function updateWorkPackageHistory(workPackage) {
                 // Style the header row
                 worksheet.getRow(1).font = { bold: true };
             } else {
+                console.error('Error accessing Excel file:', error);
                 throw error;
             }
+        }
+
+        // Verify worksheet exists before adding row
+        if (!worksheet) {
+            throw new Error('Worksheet could not be initialized');
         }
 
         // Add new row
@@ -217,7 +238,7 @@ async function updateWorkPackageHistory(workPackage) {
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
-                       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                     }
                 }
             );
@@ -226,6 +247,7 @@ async function updateWorkPackageHistory(workPackage) {
         console.log('✅ Updated work package history in OneDrive Excel file');
     } catch (error) {
         console.error('Error updating work package history:', error);
+        throw error;
     }
 }
 
