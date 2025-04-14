@@ -132,6 +132,7 @@ async function downloadFromOneDrive(fileId) {
 }
 
 // Function to update Excel file with work package history
+// Function to update Excel file with work package history
 async function updateWorkPackageHistory(workPackage) {
     try {
         // Get the Excel file from OneDrive
@@ -218,31 +219,47 @@ async function updateWorkPackageHistory(workPackage) {
         // Convert workbook to buffer
         const buffer = await workbook.xlsx.writeBuffer();
 
-        if (excelFileId) {
-            // Update existing file
-            await axios.put(
-                `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
-                buffer,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    }
+        // Function to attempt file upload with retries
+        const uploadFile = async (retryCount = 0) => {
+            try {
+                if (excelFileId) {
+                    // Update existing file
+                    await axios.put(
+                        `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
+                        buffer,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            }
+                        }
+                    );
+                } else {
+                    // Create new file
+                    await axios.put(
+                        `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}:/content`,
+                        buffer,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            }
+                        }
+                    );
                 }
-            );
-        } else {
-            // Create new file
-            await axios.put(
-                `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}:/content`,
-                buffer,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    }
+            } catch (error) {
+                if (error.response?.status === 423 && retryCount < 3) {
+                    // Wait for 2 seconds before retrying
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    console.log(`Retrying file upload (attempt ${retryCount + 1})...`);
+                    return uploadFile(retryCount + 1);
                 }
-            );
-        }
+                throw error;
+            }
+        };
+
+        // Attempt to upload the file with retries
+        await uploadFile();
 
         console.log('✅ Updated work package history in OneDrive Excel file');
     } catch (error) {
