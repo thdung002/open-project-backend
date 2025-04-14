@@ -248,9 +248,9 @@ async function updateWorkPackageHistory(workPackage) {
                     );
                 }
             } catch (error) {
-                if (error.response?.status === 423 && retryCount < 3) {
+                if (error.response?.status === 423 && retryCount < 5) {
                     // Wait for 2 seconds before retrying
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     console.log(`Retrying file upload (attempt ${retryCount + 1})...`);
                     return uploadFile(retryCount + 1);
                 }
