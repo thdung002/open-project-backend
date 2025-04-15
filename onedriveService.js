@@ -291,10 +291,23 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                 const rowCount = worksheet.rowCount || 1;
                 // console.log(`Current row count: ${rowCount}`);
 
+                // Format date to DD/MM/YYYY hh:mm:ss in GMT+8
+                const date = new Date(essentialData.createdAt);
+                const formattedDate = date.toLocaleString('en-GB', { 
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false, // Use 24-hour format
+                    timeZone: 'Asia/Singapore' // GMT+8
+                });
+
                 const newRow = worksheet.addRow([
                     essentialData.id,
                     essentialData.subject,
-                    new Date(essentialData.createdAt).toLocaleString(),
+                    formattedDate,
                     `${process.env.OPENPROJECT_URL}/projects/${essentialData.project}/work_packages/${essentialData.id}`
                 ]);
 
