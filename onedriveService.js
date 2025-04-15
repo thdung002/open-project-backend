@@ -35,7 +35,7 @@ async function saveQueue(queue) {
             id: wp.id,
             subject: wp.subject,
             createdAt: wp.createdAt,
-            projects: wp._embedded.project.identifier
+            project: wp._embedded.project.identifier
         }));
         const data = JSON.stringify(essentialQueue, null, 2);
         await fs.writeFile(QUEUE_FILE, data, 'utf8');
@@ -234,7 +234,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             id: workPackage.id,
             subject: workPackage.subject,
             createdAt: workPackage.createdAt,
-            projects: workPackage._embedded.project.identifier
+            project: workPackage.project || workPackage._embedded?.project?.identifier // Handle both queue data and new data
         };
 
         try {
@@ -295,12 +295,12 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                     essentialData.id,
                     essentialData.subject,
                     new Date(essentialData.createdAt).toLocaleString(),
-                    `${process.env.OPENPROJECT_URL}/projects/${essentialData.projects}/work_packages/${essentialData.id}`
+                    `${process.env.OPENPROJECT_URL}/projects/${essentialData.project}/work_packages/${essentialData.id}`
                 ]);
 
                 // Add hyperlink to the last cell (link column)
                 const linkCell = newRow.getCell(4);
-                const url = `${process.env.OPENPROJECT_URL}/projects/${essentialData.projects}/work_packages/${essentialData.id}`;
+                const url = `${process.env.OPENPROJECT_URL}/projects/${essentialData.project}/work_packages/${essentialData.id}`;
                 linkCell.value = { 
                     text: `WP#${essentialData.id}`,
                     hyperlink: url,
