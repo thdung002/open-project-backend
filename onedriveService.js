@@ -35,7 +35,7 @@ async function saveQueue(queue) {
             id: wp.id,
             subject: wp.subject,
             createdAt: wp.createdAt,
-            projects: wp._embedded.project.identifier
+            project: wp._embedded.project.identifier
         }));
         const data = JSON.stringify(essentialQueue, null, 2);
         await fs.writeFile(QUEUE_FILE, data, 'utf8');
@@ -234,7 +234,7 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             id: workPackage.id,
             subject: workPackage.subject,
             createdAt: workPackage.createdAt,
-            projects: workPackage._embedded.project.identifier
+            project: workPackage._embedded.project.identifier
         };
 
         try {
