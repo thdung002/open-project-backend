@@ -55,7 +55,7 @@ const fetchAllData = async (endpoint) => {
         while (true) {
             // console.log(`🔄 Fetching ${endpoint} - Offset: ${offset}, PageSize: ${pageSize}`);
 
-            const response = await axios.get(`${BASE_URL}/${endpoint}?offset=${offset}&pageSize=${pageSize}`,AUTH_HEADER);
+            const response = await axios.get(`${BASE_URL}/api/v3/${endpoint}?offset=${offset}&pageSize=${pageSize}`,AUTH_HEADER);
 
             if (response.data._embedded && response.data._embedded.elements.length > 0) {
                 results.push(...response.data._embedded.elements); // Append new data

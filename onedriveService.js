@@ -34,7 +34,8 @@ async function saveQueue(queue) {
         const essentialQueue = Array.from(queue).map(wp => ({
             id: wp.id,
             subject: wp.subject,
-            createdAt: wp.createdAt
+            createdAt: wp.createdAt,
+            projects: wp._embedded.project.identifier
         }));
         const data = JSON.stringify(essentialQueue, null, 2);
         await fs.writeFile(QUEUE_FILE, data, 'utf8');
@@ -232,7 +233,8 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
         const essentialData = {
             id: workPackage.id,
             subject: workPackage.subject,
-            createdAt: workPackage.createdAt
+            createdAt: workPackage.createdAt,
+            projects: workPackage._embedded.project.identifier
         };
 
         try {
@@ -293,8 +295,23 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                     essentialData.id,
                     essentialData.subject,
                     new Date(essentialData.createdAt).toLocaleString(),
-                    `${process.env.OPENPROJECT_URL}/work_packages/${essentialData.id}`
+                    `${process.env.OPENPROJECT_URL}/projects/${essentialData.projects}/work_packages/${essentialData.id}`
                 ]);
+
+                // Add hyperlink to the last cell (link column)
+                const linkCell = newRow.getCell(4);
+                const url = `${process.env.OPENPROJECT_URL}/projects/${essentialData.projects}/work_packages/${essentialData.id}`;
+                linkCell.value = { 
+                    text: `WP#${essentialData.id}`,
+                    hyperlink: url,
+                    type: 'hyperlink'
+                };
+                
+                // Style the hyperlink
+                linkCell.font = {
+                    color: { argb: '0563C1' },  // Blue color
+                    underline: true
+                };
 
                 // console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
             }

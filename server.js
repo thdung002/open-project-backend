@@ -14,7 +14,7 @@ require("dotenv").config();
 const fs = require('fs');
 const os = require('os');
 
-const OPENPROJECT_API_URL = `${process.env.OPENPROJECT_URL}/work_packages`;
+const WP_API_URL = `${process.env.OPENPROJECT_URL}/api/v3/work_packages`;
 const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN}`).toString("base64")}`;
 
 async function createTicket(ticketData) {
@@ -57,7 +57,7 @@ async function createTicket(ticketData) {
                 formData.append('file', fs.createReadStream(tempFilePath));
 
                 // Upload to OpenProject
-                const uploadResponse = await axios.post(`${process.env.OPENPROJECT_URL}/attachments`, 
+                const uploadResponse = await axios.post(`${process.env.OPENPROJECT_URL}/api/v3/attachments`, 
                     formData,
                     {
                         headers: {
@@ -108,7 +108,7 @@ async function createTicket(ticketData) {
             })
         };
 
-        const response = await axios.post(OPENPROJECT_API_URL, requestBody, {
+        const response = await axios.post(WP_API_URL, requestBody, {
             headers: {
                 "Authorization": AUTH_HEADER,
                 "Content-Type": "application/json"
@@ -146,7 +146,7 @@ async function createTicket(ticketData) {
             };
 
             try {
-                const retryResponse = await axios.post(OPENPROJECT_API_URL, retryRequestBody, {
+                const retryResponse = await axios.post(WP_API_URL, retryRequestBody, {
                     headers: {
                         "Authorization": AUTH_HEADER,
                         "Content-Type": "application/json"

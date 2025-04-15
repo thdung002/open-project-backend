@@ -43,7 +43,7 @@ This application automatically creates OpenProject tickets from JSON files store
 
 ```env
 # OpenProject Configuration
-OPENPROJECT_URL=https://your-openproject-instance.com/api/v3
+OPENPROJECT_API_URL=https://your-openproject-instance.com
 OPENPROJECT_TOKEN=your-openproject-api-token
 
 # Microsoft Graph Configuration
