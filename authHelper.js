@@ -17,7 +17,7 @@ async function getAccessToken() {
             new URLSearchParams({
                 client_id: process.env.MICROSOFT_CLIENT_ID,
                 client_secret: process.env.MICROSOFT_CLIENT_SECRET,
-                scope: 'https://graph.microsoft.com/Files.ReadWrite.All offline_access',
+                scope: 'https://graph.microsoft.com/Files.ReadWrite.All Chat.ReadWrite offline_access',
                 grant_type: 'password',
                 username: process.env.MICROSOFT_USER_EMAIL,
                 password: process.env.MICROSOFT_USER_PASSWORD

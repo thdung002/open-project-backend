@@ -13,12 +13,13 @@ const FormData = require('form-data');
 require("dotenv").config();
 const fs = require('fs');
 const os = require('os');
+const { postNotifyMessage } = require('./chatService');
 
 const WP_API_URL = `${process.env.OPENPROJECT_URL}/api/v3/work_packages`;
 const AUTH_HEADER = `Basic ${Buffer.from(`apikey:${process.env.OPENPROJECT_TOKEN}`).toString("base64")}`;
 
 async function createTicket(ticketData) {
-    const { subject, projectName, description, priorityName, accountableName, releaseDate, from, assigneeName, attachments } = ticketData;
+    const { subject, projectName, description, priorityName, accountableName, releaseDate, from, assigneeName, attachments, type } = ticketData;
     
     // Fetch IDs from the partitioned data
     const projectID = getData("projects", projectName);
@@ -115,10 +116,16 @@ async function createTicket(ticketData) {
             }
         });
 
+        // Add type to the response data before updating Excel
+        const workPackageWithType = {
+            ...response.data,
+            type: type || 'default'
+        };
+
         // Update Excel file with the new work package
-        await updateWorkPackageHistory(response.data);
+        await updateWorkPackageHistory(workPackageWithType);
         
-        return response.data;
+        return workPackageWithType;
     } catch (error) {
         // Check if error is about accountable permission
         if (error.response?.data?.message?.includes('The chosen user is not allowed')) {
@@ -155,7 +162,7 @@ async function createTicket(ticketData) {
                 
                 // Update Excel file with the new work package
                 await updateWorkPackageHistory(retryResponse.data);
-                
+                                              
                 return retryResponse.data;
             } catch (retryError) {
                 throw new Error(`Failed to create ticket on retry: ${retryError.response?.data?.message || retryError.message}`);
@@ -182,6 +189,28 @@ async function processNewTickets() {
                 // Create ticket in OpenProject
                 const ticket = await createTicket(ticketData);
                 console.log(`✅ Created ticket: ${ticket.subject}`);
+
+                // Add type to the ticket for Excel worksheet
+                const ticketWithType = {
+                    ...ticket,
+                    type: ticketData.type // Add type for Excel worksheet
+                };
+
+                // Update Excel file with the new work package
+                await updateWorkPackageHistory(ticketWithType);
+
+                // Post notification message in Teams chat
+                if (ticketData.chatID) {
+                    try {
+                        await postNotifyMessage({
+                            ...ticket,
+                            chatID: ticketData.chatID,
+                            chatType: ticketData.chatType
+                        });
+                    } catch (error) {
+                        console.error('Error posting notification:', error);
+                    }
+                }
 
                 // Move processed file to archive
                 await moveToArchive(file.id);

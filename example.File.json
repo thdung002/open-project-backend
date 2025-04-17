@@ -7,5 +7,9 @@
     "priorityName": "Medium",
     "from": "Responsible Person Name",
 	"accountableName":"Dung Tran Hoang",
-	"releaseDate":"2025-03-17"
+	"releaseDate":"2025-03-17",
+    "attachments": "",
+    "messageID": "123456",
+    "type": "default",
+    "channelID": "channel123"
 }

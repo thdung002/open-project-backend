@@ -3,6 +3,7 @@ const { getAccessToken } = require('./authHelper');
 const ExcelJS = require('exceljs');
 const fs = require('fs').promises;
 const path = require('path');
+const { updateChatMessage } = require('./chatService');
 require('dotenv').config();
 
 // Queue file path
@@ -35,7 +36,10 @@ async function saveQueue(queue) {
             id: wp.id,
             subject: wp.subject,
             createdAt: wp.createdAt,
-            project: wp._embedded.project.identifier
+            project: wp._embedded?.project?.identifier,
+            messageID: wp.messageID,
+            type: wp.type,
+            channelID: wp.channelID
         }));
         const data = JSON.stringify(essentialQueue, null, 2);
         await fs.writeFile(QUEUE_FILE, data, 'utf8');
@@ -187,10 +191,16 @@ async function moveToArchive(fileId) {
 function parseTicketData(content) {
     try {
         // console.log('🔍 Parsing ticket data...');
-        if (typeof content === 'string') {
-            return JSON.parse(content);
-        }
-        return content;
+        const data = typeof content === 'string' ? JSON.parse(content) : content;
+        
+        // Extract type from the file content for Excel worksheet
+        const type = data.type || 'default';
+        
+        // Return the data with the type for Excel worksheet
+        return {
+            ...data,
+            type // This will be used for the Excel worksheet name
+        };
     } catch (error) {
         console.error('Error parsing ticket data:', error.message);
         throw error;
@@ -223,19 +233,22 @@ async function downloadFromOneDrive(fileId) {
 // Function to update Excel file with work package history
 async function updateWorkPackageHistory(workPackage, isRetry = false) {
     try {
-        const token = await getAccessToken();
-        const excelPath = '/history-openproject.xlsx';
-        let workbook = new ExcelJS.Workbook();
-        let worksheet;
-        let excelFileId = null;
-
         // Extract only needed fields from work package
         const essentialData = {
             id: workPackage.id,
             subject: workPackage.subject,
             createdAt: workPackage.createdAt,
-            project: workPackage.project || workPackage._embedded?.project?.identifier // Handle both queue data and new data
+            project: workPackage._embedded?.project?.identifier,
+            messageID: workPackage.messageID,
+            type: workPackage.type || 'default', // Type should now come from the file content
+            channelID: workPackage.channelID
         };
+
+        const token = await getAccessToken();
+        const excelPath = '/history-openproject.xlsx';
+        let workbook = new ExcelJS.Workbook();
+        let worksheet;
+        let excelFileId = null;
 
         try {
             // Try to get existing file
@@ -262,11 +275,11 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             
             // Load the workbook
             await workbook.xlsx.load(fileContent.data);
-            worksheet = workbook.getWorksheet('Work Packages');
             
-            // Get worksheet
+            // Get or create worksheet based on type
+            worksheet = workbook.getWorksheet(essentialData.type);
             if (!worksheet) {
-                worksheet = workbook.addWorksheet('Work Packages');
+                worksheet = workbook.addWorksheet(essentialData.type);
                 // Add headers
                 worksheet.columns = [
                     { header: 'ID', key: 'id', width: 10 },
@@ -322,18 +335,12 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                 
                 // Style the hyperlink
                 linkCell.font = {
-                    color: { argb: '0563C1' },  // Blue color
+                    color: { argb: '0563C1' },
                     underline: true
                 };
 
-                // console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
-            }
-
-            // Convert workbook to buffer
-            const buffer = await workbook.xlsx.writeBuffer();
-
-            try {
                 // Update the original file directly
+                const buffer = await workbook.xlsx.writeBuffer();
                 await axios.put(
                     `https://graph.microsoft.com/v1.0/me/drive/items/${excelFileId}/content`,
                     buffer,
@@ -345,33 +352,77 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
                     }
                 );
 
-                console.log('✅ Updated work package history in OneDrive Excel file');
-                
-                // If this was a retry, remove from queue
-                if (isRetry) {
-                    failedUpdatesQueue.delete(workPackage);
-                    await saveQueue(failedUpdatesQueue);
-                    // console.log(`✅ Removed work package ${workPackage.id} from retry queue`);
-                }
-            } catch (error) {
-                console.error('Error updating Excel file:', error);
-                
-                // If not a retry attempt, add to queue
-                if (!isRetry) {
-                    failedUpdatesQueue.add(workPackage);
-                    await saveQueue(failedUpdatesQueue);
-                    // console.log(`📝 Added work package ${workPackage.id} to retry queue`);
-                }
+                // Remove the chat message update from here since it's now done earlier
+                // console.log(`📝 Added new row for work package ${essentialData.id} at row ${rowCount + 1}`);
             }
         } catch (error) {
-            console.error('Error in Excel operations:', error.message);
-            if (!isRetry) {
-                // Add only essential data to queue
-                failedUpdatesQueue.add(essentialData);
-                await saveQueue(failedUpdatesQueue);
-                // console.log(`📝 Added work package ${essentialData.id} to retry queue`);
+            if (error.response?.status === 404) {
+                // File doesn't exist, create new worksheet
+                worksheet = workbook.addWorksheet(essentialData.type);
+                
+                // Add headers
+                worksheet.columns = [
+                    { header: 'ID', key: 'id', width: 10 },
+                    { header: 'Subject', key: 'subject', width: 50 },
+                    { header: 'Created on', key: 'createdOn', width: 20 },
+                    { header: 'Link', key: 'link', width: 50 }
+                ];
+                
+                // Style the header row
+                worksheet.getRow(1).font = { bold: true };
+
+                // Add the first row
+                const date = new Date(essentialData.createdAt);
+                const formattedDate = date.toLocaleString('en-GB', { 
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                    timeZone: 'Asia/Singapore'
+                });
+
+                const newRow = worksheet.addRow([
+                    essentialData.id,
+                    essentialData.subject,
+                    formattedDate,
+                    `${process.env.OPENPROJECT_URL}/projects/${essentialData.project}/work_packages/${essentialData.id}`
+                ]);
+
+                // Add hyperlink
+                const linkCell = newRow.getCell(4);
+                const url = `${process.env.OPENPROJECT_URL}/projects/${essentialData.project}/work_packages/${essentialData.id}`;
+                linkCell.value = { 
+                    text: `WP#${essentialData.id}`,
+                    hyperlink: url,
+                    type: 'hyperlink'
+                };
+                
+                linkCell.font = {
+                    color: { argb: '0563C1' },
+                    underline: true
+                };
+
+                // Save the new file
+                const buffer = await workbook.xlsx.writeBuffer();
+                await axios.put(
+                    `https://graph.microsoft.com/v1.0/me/drive/root:${excelPath}:/content`,
+                    buffer,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                        }
+                    }
+                );
+
+                // Remove the chat message update from here since it's now done earlier
+            } else {
+                console.error('Error accessing Excel file:', error);
+                throw error;
             }
-            throw error; // Re-throw to handle in outer catch
         }
     } catch (error) {
         console.error('Error in updateWorkPackageHistory:', error.message);
@@ -380,7 +431,11 @@ async function updateWorkPackageHistory(workPackage, isRetry = false) {
             const essentialData = {
                 id: workPackage.id,
                 subject: workPackage.subject,
-                createdAt: workPackage.createdAt
+                createdAt: workPackage.createdAt,
+                project: workPackage.project || workPackage._embedded?.project?.identifier,
+                messageID: workPackage.messageID,
+                type: workPackage.type,
+                channelID: workPackage.channelID
             };
             failedUpdatesQueue.add(essentialData);
             await saveQueue(failedUpdatesQueue);
