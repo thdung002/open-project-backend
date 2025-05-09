@@ -114,7 +114,9 @@ const DEFAULT_USERS = {
     "Hanh Tran": 7,
     "Hendry Ding": 6,
     "Thong Lu": 5,
-    "Phuoc Tran Tan": 81
+    "Phuoc Tran Tan": 81,
+    "Thai Ai Han": 185,
+    "Tam Nguyen Le Thi Nhi": 190
 };
 
 // First-run check: If `cachedData` is null, fetch data immediately
